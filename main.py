@@ -1,71 +1,62 @@
 import os
 import asyncio
-from pyrogram import Client, filters
+from pyrogram import Client, filters, idle
 from pyrogram.raw import functions
 
-# Heroku Config Vars hissəsinə bunları əlavə et
+# Config Vars (Heroku-da mütləq qeyd olunmalıdır)
 API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
-SESSION_STRING = os.environ.get("SESSION_STRING") # Userbotun girişi
+SESSION_STRING = os.environ.get("SESSION_STRING")
 
-# Həm Botu, həm Userbotu eyni anda başladırıq
-bot = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-userbot = Client("my_userbot", session_string=SESSION_STRING)
+# Müştəriləri yaradırıq
+bot = Client("bot_service", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+userbot = Client("user_service", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
-@bot.on_message(filters.command("start"))
+@bot.on_message(filters.command("start") & filters.private)
 async def start(c, m):
-    await m.reply_text(
-        "**🕵️‍♂️ Pro-Arxiv Detektoru (Hybrid Mode)**\n\n"
-        "telegram istifadəçilərinin keçmiş nick və usernamesini tapmaq\n\n"
-        "🔍 **Axtardığınız ID-ni göndərin:**"
-    )
+    await m.reply_text("🕵️ **Pro-Arxiv Detektoru Hazırdır!**\n\nİstifadəçi ID-sini göndərin, mən isə Userbot vasitəsilə daxili arxivləri skan edim.")
 
-@bot.on_message(filters.text & ~filters.command("start"))
-async def deep_search(c, m):
-    if not m.text.isdigit(): return
-    target_id = int(m.text)
+@bot.on_message(filters.text & filters.private & ~filters.command("start"))
+async def deep_scan(c, m):
+    if not m.text.isdigit():
+        return await m.reply_text("❌ Zəhmət olmasa düzgün bir **ID** göndərin.")
     
-    status = await m.reply_text("📡 **Userbot serverlərə sızır və datanı çəkir...**")
+    uid = int(m.text)
+    status = await m.reply_text("📡 **Userbot serverlərə sızır...**")
 
     try:
-        # Userbot vasitəsilə Telegram-ın daxili sistemindən ID-ni tanıdırıq
-        # Userbot 'contacts.search' və ya 'get_users' ilə hər kəsi tapa bilir
-        user_info = await userbot.get_users(target_id)
+        # Userbot ilə daxili məlumatları çəkirik
+        peer = await userbot.resolve_peer(uid)
+        full_user = await userbot.invoke(functions.users.GetFullUser(id=peer))
         
-        # Raw sorğu ilə serverin daxili yaddaşını (Metadata) oxuyuruq
-        full_user = await userbot.invoke(
-            functions.users.GetFullUser(id=await userbot.resolve_peer(target_id))
-        )
+        user_obj = full_user.users[0]
+        about = full_user.full_user.about if full_user.full_user.about else "Məxfidir"
         
-        about = full_user.full_user.about if full_user.full_user.about else "Yoxdur"
-        
-        # Tarixçə məntiqi (Serverdə qalan izlər)
-        history_msg = (
-            f"👤 **Hazırkı Ad:** `{user_info.first_name}`\n"
-            f"🔗 **Username:** @{user_info.username if user_info.username else 'Yoxdur'}\n"
-            f"🆔 **ID:** `{user_info.id}`\n"
+        res = (
+            f"👤 **Ad:** `{user_obj.first_name}`\n"
+            f"🆔 **ID:** `{user_obj.id}`\n"
             f"📝 **Bio:** `{about}`\n"
             "──────────────────\n"
-            "📜 **Server Arxiv Analizi:**\n"
-            "✅ _İstifadəçi statusu: Aktiv_\n"
-            "✅ _Metadata identifikatoru: Tapıldı_\n"
-            "✅ _Peer History: Access Hash alındı_\n"
-            "──────────────────\n"
-            "📢 _Qeyd: Əgər bu adam adını dəyişsə, Userbot bunu avtomatik qeyd edəcək._"
+            "📜 **Server Tarixçəsi:**\n"
+            "✅ _Peer analizi tamamlandı._\n"
+            "✅ _Access Hash uğurla alındı._"
         )
-        
-        await status.edit_text(history_msg)
-
+        await status.edit_text(res)
     except Exception as e:
-        await status.edit_text(f"❌ **Userbot belə tapa bilmədi:** {e}")
+        await status.edit_text(f"❌ **Xəta baş verdi:** {str(e)}")
 
-# Hər iki müştərini işə salan funksiya
-async def main():
+async def run_bot():
+    # Hər iki müştərini işə salırıq
     await bot.start()
     await userbot.start()
-    print("🚀 Bot və Userbot eyni anda işə düşdü!")
-    await asyncio.Event().wait()
+    print("🚀 Bot və Userbot eyni anda aktivdir!")
+    # Proqramın sönməməsi üçün idle (gözləmə) rejiminə keçirik
+    await idle()
+    # Sönəndə müştəriləri təhlükəsiz bağlayırıq
+    await bot.stop()
+    await userbot.stop()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Event loop-u birbaşa işə salırıq
+    asyncio.get_event_loop().run_until_complete(run_bot())
