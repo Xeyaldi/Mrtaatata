@@ -2,7 +2,6 @@ import os, asyncio, sqlite3, datetime
 from pyrogram import Client, filters, idle
 from pyrogram.raw import functions
 from pyrogram.errors import PeerIdInvalid, FloodWait
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # --- CONFIG ---
 API_ID = int(os.environ.get("API_ID"))
@@ -26,116 +25,107 @@ db.commit()
 bot = Client("master_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 userbot = Client("master_user", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
 
-# --- START MESAJI (Qrup və Şəxsi) ---
+# --- START MESAJI ---
 @bot.on_message(filters.command("start"))
 async def start_handler(c, m):
-    btn = InlineKeyboardMarkup([[
-        InlineKeyboardButton("➕ Məni Qrupunuza Əlavə Edin", url=f"https://t.me/{(await c.get_me()).username}?startgroup=true")
-    ]])
     text = (
         "**🔱 Pro-Arxeoloq Sistemi Aktivdir!**\n\n"
-        "Skan etmək üçün:\n"
-        "🔹 **Şəxsi çatda:** Birbaşa ID, @username və ya mesaj yönləndirin.\n"
-        "🔹 **Qruplarda:** `/axdar ID` və ya `@username` yazın.\n\n"
-        "📢 **Məni qrupunuza əlavə edib admin etsəniz, ordakı hər kəsin ad dəyişikliyini anlıq qeyd edərəm!**"
+        "Bütün üsullarla axtarış:\n"
+        "🔹 **Şəxsi:** ID, @username və ya forward.\n"
+        "🔹 **Qrupda:** `/axdar ID` və ya `/axdar @username` yazın.\n\n"
+        "🔍 _Sistem hər yerdə axtarır..._"
     )
-    await m.reply_text(text, reply_markup=btn)
+    await m.reply_text(text)
 
-# --- COMBOT METODU: QRUPLARI İZLƏMƏK (AVTOMATİK) ---
+# --- QRUPLARI İZLƏMƏK (BÜTÜN QRUPLARDA ANLIQ QEYD) ---
 @bot.on_message(filters.group & ~filters.service & ~filters.command(["axdar", "start"]))
 async def group_monitor(c, m):
     if m.from_user:
         uid = m.from_user.id
         name = f"{m.from_user.first_name} {m.from_user.last_name or ''}".strip()
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        
         cursor.execute("SELECT last_name FROM users WHERE uid=?", (uid,))
         row = cursor.fetchone()
         if not row:
             cursor.execute("INSERT INTO users (uid, history, last_name, last_seen) VALUES (?, ?, ?, ?)", 
                          (uid, f"📍 İlk dəfə qrupda görüldü: {name}", name, now))
-            db.commit()
         elif row[0] != name:
             cursor.execute("UPDATE users SET history=history || ?, last_name=?, last_seen=? WHERE uid=?", 
                          (f"\n└ [{now}] Ad dəyişdi: {name}", name, now, uid))
-            db.commit()
+        db.commit()
 
-# --- ƏSAS SKANER (ID, Username, Forward və /axdar komandası) ---
+# --- ƏSAS MAKSİMUM SKANER ---
 @bot.on_message((filters.command("axdar") | (filters.private & (filters.text | filters.forwarded))) & ~filters.command("start"))
 async def master_scan(c, m):
     target_id = None
-
-    # 1. Forwarded mesajdan ID götürmək
     if m.forward_from:
         target_id = str(m.forward_from.id)
-    
-    # 2. Komanda və ya mətn daxilindən ID/Username tapmaq
     else:
         args = m.command if m.command else m.text.split()
-        if len(args) > 1 and m.command: # /axdar 12345
-            query = args[1]
-        elif not m.command: # Şəxsi çatda birbaşa yazılan
-            query = args[0]
-        else:
-            return await m.reply_text("ℹ️ **İstifadə:** `/axdar 12345` və ya `/axdar @username`")
+        if len(args) > 1 and m.command: query = args[1]
+        elif not m.command: query = args[0]
+        else: return
 
-        if query.replace("-", "").isdigit():
-            target_id = query
+        if query.replace("-", "").isdigit(): target_id = query
         elif query.startswith("@"):
             try:
                 tmp = await userbot.get_users(query)
                 target_id = str(tmp.id)
-            except:
-                return await m.reply_text("❌ Username tapılmadı.")
-        else:
-            return
+            except: return await m.reply_text("❌ Bu username tapılmadı.")
+        else: return
 
-    status = await m.reply_text("📡 **Bütün arxivlər sinxronizasiya edilir...**")
+    # 🔥 HAVALI VİZUAL SKAN PROSESİ
+    status = await m.reply_text("📡 **Bütün şəbəkələr sinxronizasiya edilir...**\n`[ ░░░░░░░░░░ ] 0%`")
+    await asyncio.sleep(0.5)
 
     try:
-        # --- ÜSUL 1: SERVER ENTITY ---
+        # 🛰 ÜSUL 1: RAW SERVER ENTITY
+        await status.edit_text("🛰 **Üsul 1: Server qalıqları qazılır...**\n`[ ██░░░░░░░░ ] 20%`")
         u_info = await userbot.get_users(int(target_id))
         c_name = f"{u_info.first_name} {u_info.last_name or ''}".strip()
         
-        # --- ÜSUL 2: SANGMATA (PRYAMOY SORĞU) ---
+        # 🌐 ÜSUL 2: GLOBAL ARCHIVE SCRAPE (SANGMATA BYPASS)
+        await status.edit_text("🌐 **Üsul 2: Qlobal arxivlərə sızılır...**\n`[ █████░░░░░ ] 50%`")
         arc_bot = "SangMata_BOT"
         await userbot.send_message(arc_bot, target_id)
-        await asyncio.sleep(6) 
+        await asyncio.sleep(7) 
         
-        global_history = "❌ Qlobal arxivdə keçmiş iz tapılmadı."
-        async for msg in userbot.get_chat_history(arc_bot, limit=3):
-            if msg.text and (target_id in msg.text or "Name" in msg.text):
-                global_history = msg.text.replace("SangMata", "Pro-Arxeoloq")
-                break
+        global_history = "❌ Qlobal arxivdə heç bir iz tapılmadı."
+        async for msg in userbot.get_chat_history(arc_bot, limit=5):
+            if msg.from_user and msg.from_user.username == arc_bot:
+                if msg.text or msg.caption:
+                    global_history = (msg.text or msg.caption).replace("SangMata", "Pro-System")
+                    break
 
-        # --- ÜSUL 3: LOCAL DB ---
+        # 📂 ÜSUL 3: LOKAL BAZA (BOTUN ÖZ QRUPLARI)
+        await status.edit_text("📂 **Üsul 3: Lokal baza təhlil edilir...**\n`[ ███████░░░ ] 75%`")
         cursor.execute("SELECT history FROM users WHERE uid=?", (int(target_id),))
         db_data = cursor.fetchone()
-        local_display = db_data[0] if db_data else "Bot bu adamı ilk dəfə görür (Lokal qeyd yoxdur)."
+        local_display = db_data[0] if db_data else "Bu ID hələ botun olduğu heç bir qrupda görünməyib."
 
-        # --- FİNAL HESABAT ---
+        # ✅ FİNAL VİZUAL
+        await status.edit_text("📊 **Analiz bitdi. Məlumatlar paketlənir...**\n`[ ██████████ ] 100%`")
+        await asyncio.sleep(0.5)
+
         final_text = (
             f"👤 **AD:** `{c_name}`\n"
             f"🆔 **ID:** `{target_id}`\n"
             "──────────────────────\n"
-            "📜 **HESAB YARANANDAN BƏRİ (Global):**\n"
+            "📜 **ARXİV TARİXÇƏSİ (Global):**\n"
             f"```{global_history}```\n"
             "──────────────────────\n"
-            "📂 **BOTUN QRUPLARDAN YIĞDIĞI (Local):**\n"
+            "📂 **BOTUN ÖZ ARXİVİ (Local):**\n"
             f"_{local_display}_\n"
             "──────────────────────\n"
-            "✨ _Deep Scan: Forward + Group Tracker + OSINT_"
+            "✨ _Deep OSINT Metodu Tamamlandı._"
         )
         await status.edit_text(final_text)
 
-    except Exception as e:
-        await status.edit_text(f"⚠️ **Xəta:** Məlumat çəkilə bilmədi. (ID səhv ola bilər)")
+    except Exception:
+        await status.edit_text("⚠️ **Xəta: Məlumat çəkilə bilmədi.**")
 
 async def main():
-    await bot.start()
-    await userbot.start()
-    print("🚀 Mega Detektor Qruplarda İşləməyə Hazırdır!")
-    await idle()
+    await bot.start(); await userbot.start(); print("🚀 SİSTEM ONLAYN!"); await idle()
 
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(main())
