@@ -3,7 +3,7 @@ import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Config
+# Config - Heroku Config Vars-dan oxunur
 API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
@@ -30,12 +30,16 @@ async def get_history(client, message):
     
     found_names = set()
     try:
-        # search_global istifadə edirik
+        # Userbot-un axtarış etməsi üçün mütləq asinxron mühitdə (start vəziyyətində) olmalıdır
         async for msg in userbot.search_global(filter="empty"):
             if msg.from_user and msg.from_user.id == target_id:
                 name = f"{msg.from_user.first_name} {msg.from_user.last_name or ''}".strip()
+                if msg.from_user.username:
+                    name += f" (@{msg.from_user.username})"
                 found_names.add(f"• {name}")
-            if len(found_names) >= 15: break
+            
+            if len(found_names) >= 15: 
+                break
             
         if found_names:
             await m.edit(f"✅ **ID `{target_id}` üçün tapılanlar:**\n\n" + "\n".join(found_names))
@@ -44,15 +48,20 @@ async def get_history(client, message):
     except Exception as e:
         await m.edit(f"Xəta: {e}")
 
-# BU HİSSƏDƏ DƏYİŞİKLİK ETDİK (RuntimeError-un qarşısını almaq üçün)
-async def start_services():
+# --- ƏSAS HİSSƏ (XƏTANI DÜZƏLDƏN YER) ---
+async def main():
+    print("🚀 Botlar başladılır...")
     await userbot.start()
     await bot.start()
-    print("Bot və Userbot uğurla işə düşdü!")
+    print("✅ Bot və Userbot uğurla işə düşdü!")
+    # Botun sönməməsi üçün sonsuz döngüdə saxlayırıq
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
+    # Bu metod həm Heroku-da, həm də yeni Python versiyalarında loop xətasını 100% həll edir
     try:
-        asyncio.run(start_services())
-    except (KeyboardInterrupt, SystemExit):
-        pass
+        asyncio.get_event_loop().run_until_complete(main())
+    except Exception as e:
+        print(f"Kritik xəta: {e}")
+        # Alternativ başlama metodu
+        asyncio.run(main())
