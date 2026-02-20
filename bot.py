@@ -1,108 +1,100 @@
-import os, asyncio, sqlite3, datetime
-from pyrogram import Client, filters, idle
+import os
+import yt_dlp
+import google.generativeai as genai
+from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# --- CONFIG ---
-API_ID = int(os.environ.get("API_ID"))
-API_HASH = os.environ.get("API_HASH")
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-SESSION_STRING = os.environ.get("SESSION_STRING")
+# Ayarlar (Heroku Config Vars bölməsinə əlavə et)
+API_ID = int(os.environ.get("API_ID", "12345"))
+API_HASH = os.environ.get("API_HASH", "hash_kodun")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
+GEMINI_KEY = os.environ.get("GEMINI_KEY", "gemini_key")
 
-# --- DATABASE SETUP ---
-db = sqlite3.connect("mega_archive.db", check_same_thread=False)
-cursor = db.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS users (uid INTEGER PRIMARY KEY, history TEXT, last_name TEXT)")
-db.commit()
+# Gemini AI Konfiqurasiyası
+genai.configure(api_key=GEMINI_KEY)
+ai_model = genai.GenerativeModel('gemini-1.5-flash')
 
-bot = Client("master_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-userbot = Client("master_user", api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
+app = Client("ht_ai_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# Müvəqqəti yaddaş (SangMata-dan gələn qorumalı mesajı tutmaq üçün)
-found_data = {}
+# Video yükləmə mexanizmi
+def download_media(url):
+    ydl_opts = {
+        'format': 'best',
+        'outtmpl': 'downloads/%(title)s.%(ext)s',
+        'quiet': True, 'no_warnings': True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        return ydl.prepare_filename(info)
 
-# --- SANGMATA-DAN GƏLƏN MESAJI HAVADA TUTMAQ ---
-@userbot.on_message(filters.chat("SangMata_BOT"))
-async def catch_protected_msg(c, m):
-    text = m.text or m.caption
-    if text:
-        for uid in found_data.keys():
-            if str(uid) in text or "Name" in text:
-                found_data[uid] = text
-                break
-
-# --- START MESAJI (Yalnız düymə ilə) ---
-@bot.on_message(filters.command("start"))
-async def start_handler(c, m):
-    btn = InlineKeyboardMarkup([[
-        InlineKeyboardButton("➕ Məni Qrupunuza Əlavə Edin", url=f"https://t.me/{(await c.get_me()).username}?startgroup=true")
-    ]])
-    await m.reply_text("**🔱 Sistem Aktivdir.**", reply_markup=btn)
-
-# --- QRUPDA AD İZLƏMƏ ---
-@bot.on_message(filters.group & ~filters.service & ~filters.command(["axdar", "start"]))
-async def group_monitor(c, m):
-    if m.from_user:
-        uid = m.from_user.id
-        name = f"{m.from_user.first_name} {m.from_user.last_name or ''}".strip()
-        cursor.execute("SELECT last_name FROM users WHERE uid=?", (uid,))
-        row = cursor.fetchone()
-        if not row:
-            cursor.execute("INSERT INTO users (uid, history, last_name) VALUES (?, ?, ?)", (uid, f"📍 {name}", name))
-        elif row[0] != name:
-            cursor.execute("UPDATE users SET history=history || ?, last_name=? WHERE uid=?", (f"\n└ {name}", name, uid))
-        db.commit()
-
-# --- ƏSAS SKANER (/axdar komandası) ---
-@bot.on_message((filters.command("axdar") | (filters.private & (filters.text | filters.forwarded))) & ~filters.command("start"))
-async def master_scan(c, m):
-    target_id = None
-    if m.forward_from: target_id = str(m.forward_from.id)
-    else:
-        args = m.command if m.command else m.text.split()
-        if len(args) > 0:
-            query = args[1] if m.command and len(args) > 1 else args[0]
-            if query.replace("-", "").isdigit(): target_id = query
-            elif query.startswith("@"):
-                try:
-                    u = await userbot.get_users(query)
-                    target_id = str(u.id)
-                except: return
+# --- START MESAJI VƏ REAKSİYA ---
+@app.on_message(filters.command("start") & filters.private)
+async def start_handler(client, message):
+    # 🎃 Reaksiyası
+    await client.send_reaction(chat_id=message.chat.id, message_id=message.id, emoji="🎃")
     
-    if not target_id: return
-    status = await m.reply_text("📡 **Sinxronizasiya edilir...**")
+    caption = (
+        "🤖 **HT AI sizə kömək etməyə hazırdır!**\n\n"
+        "✨ **Funksiyalar:**\n"
+        "├ 🧠 `/startai` — Süni İntellekti işə salır\n"
+        "├ 📥 **Media:** Insta, TikTok, Pinterest yükləyici\n"
+        "└ 💬 **Söhbət:** Bota reply ataraq danışın\n\n"
+        "💡 _Məni qruplarda idarəçi etməyi unutmayın!_"
+    )
     
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ Məni Qrupa Əlavə Et", url=f"https://t.me/{client.me.username}?startgroup=true")],
+        [
+            InlineKeyboardButton("🐐 Sahib", url="https://t.me/kullaniciadidi"),
+            InlineKeyboardButton("📢 Bot Kanalı", url="https://t.me/ht_bots")
+        ],
+        [InlineKeyboardButton("💬 Kömək Qrupu", url="https://t.me/_ht_bots_chat")]
+    ])
+    
+    await message.reply_text(caption, reply_markup=buttons)
+
+# --- AI MƏNTİQİ: /startai VƏ YA REPLY ---
+@app.on_message(filters.group & (filters.command("startai") | filters.reply))
+async def group_ai_handler(client, message):
+    # Əgər reply-dırsa, yalnız BOTA atılan reply-ları cavabla
+    if message.reply_to_message:
+        if message.reply_to_message.from_user.id != client.me.id:
+            return 
+    elif not message.text.startswith("/startai"):
+        return
+
+    # Sualı təmizləyirik
+    user_query = message.text.replace("/startai", "").strip()
+    
+    if not user_query and message.reply_to_message:
+        user_query = message.text
+
+    if not user_query:
+        return await message.reply_text("🤔 **HT AI:** Eşidirəm, sualınızı verin!")
+
+    processing_msg = await message.reply("⚡️ `HT AI emal edir...`")
     try:
-        u_info = await userbot.get_users(int(target_id))
-        c_name = f"{u_info.first_name} {u_info.last_name or ''}".strip()
-
-        uid_int = int(target_id)
-        found_data[uid_int] = None
-        await userbot.send_message("SangMata_BOT", target_id)
-        
-        for _ in range(10): # 10 saniyə gözləmə
-            if found_data[uid_int]: break
-            await asyncio.sleep(1)
-            
-        global_history = found_data[uid_int] or "❌ Arxivdən məlumat çəkilə bilmədi."
-        del found_data[uid_int]
-
-        cursor.execute("SELECT history FROM users WHERE uid=?", (uid_int,))
-        db_data = cursor.fetchone()
-        local_display = db_data[0] if db_data else "İz tapılmadı."
-
-        final_text = (
-            f"👤 **AD:** `{c_name}`\n🆔 **ID:** `{target_id}`\n"
-            "──────────────────────\n"
-            f"```{global_history}```\n"
-            "──────────────────────\n"
-            f"📂 **Lokal:** _{local_display}_"
-        )
-        await status.edit_text(final_text)
+        response = ai_model.generate_content(user_query)
+        await processing_msg.edit(f"🤖 **HT AI:**\n\n{response.text}")
     except:
-        await status.edit_text("⚠️ **Xəta.**")
+        await processing_msg.edit("❌ Üzr istəyirəm, beyin hüceyrələrimdə qısaqapanma oldu.")
 
-async def main():
-    await bot.start(); await userbot.start(); await idle()
+# --- MÜSTƏQİL VİDEO YÜKLƏYİCİ (PM) ---
+@app.on_message(filters.private & ~filters.command("start"))
+async def pm_logic(client, message):
+    text = message.text
+    if any(x in text.lower() for x in ["tiktok.com", "instagram.com", "pin.it", "pinterest.com"]):
+        status = await message.reply("📥 **HT AI videonu gətirir...**")
+        try:
+            path = download_media(text)
+            await message.reply_video(path, caption="🚀 **HT AI Media Downloader**")
+            await status.delete()
+            os.remove(path)
+        except:
+            await status.edit("❌ Video tapılmadı və ya xəta baş verdi.")
+    else:
+        # Şəxsi mesajda birbaşa söhbət
+        res = ai_model.generate_content(text)
+        await message.reply_text(res.text)
 
-if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+app.run()
