@@ -1,36 +1,18 @@
 import os
 import yt_dlp
-import google.generativeai as genai
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+# Gemini əvəzinə tam stabil və pulsuz DuckDuckGo AI
+from duckduckgo_search import DDGS
 
 # Ayarlar (Heroku Config Vars)
 API_ID = int(os.environ.get("API_ID", "12345"))
 API_HASH = os.environ.get("API_HASH", "hash_kodun")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
-GEMINI_KEY = os.environ.get("GEMINI_KEY", "gemini_key")
-
-# --- GEMINI PRO DÜZƏLİŞİ (404 xətası üçün ən stabil ad) ---
-try:
-    genai.configure(api_key=GEMINI_KEY)
-    
-    # 404 xətası alarkən 'models/gemini-1.5-pro-latest' və ya 'gemini-1.5-pro' 
-    # prefiksləri arasında ən stabil olanını seçirik.
-    ai_model = genai.GenerativeModel(
-        model_name='gemini-1.5-pro-latest', 
-        safety_settings=[
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-        ]
-    )
-except Exception as e:
-    print(f"Gemini başlatma xətası: {e}")
 
 app = Client("ht_ai_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# --- MEDIA YÜKLƏYİCİ (Toxunulmadı) ---
+# --- MEDIA YÜKLƏYİCİ (Toxunulmadı, eynilə qalır) ---
 def download_media(url):
     ydl_opts = {
         'format': 'best',
@@ -42,13 +24,25 @@ def download_media(url):
         info = ydl.extract_info(url, download=True)
         return ydl.prepare_filename(info)
 
-# --- START MESAJI VƏ BUTONLAR (Toxunulmadı) ---
+# --- AI CAVAB FUNKSİYASI (Bloklanmayan GPT-4o-mini) ---
+async def get_ai_response(text):
+    try:
+        with DDGS() as ddgs:
+            response = ""
+            # Burada 'gpt-4o-mini' modeli işləyir, çox sürətlidir
+            for r in ddgs.chat(text, model='gpt-4o-mini'):
+                response += r
+            return response if response else "🤔 Cavab ala bilmədim."
+    except Exception as e:
+        return f"❌ AI Xətası: {str(e)}"
+
+# --- START MESAJI VƏ BUTONLAR (Toxunulmadı, eynilə qalır) ---
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
     caption = (
-        "🤖 **HT AI Xidmətinizdədir! (Pro Stabil)**\n\n"
+        "🤖 **HT AI Xidmətinizdədir!**\n\n"
         "📥 **Media:** TikTok, Instagram, Pinterest linki atın.\n"
-        "🧠 **AI:** Gemini 1.5 Pro ilə sual-cavab aktivdir."
+        "🧠 **AI:** İstənilən sualı yazın və ya `/ai` komandasını işlədin."
     )
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ Məni Qrupa Əlavə Et", url=f"https://t.me/{client.me.username}?startgroup=true")],
@@ -59,13 +53,30 @@ async def start_handler(client, message):
     ])
     await message.reply_text(caption, reply_markup=buttons)
 
-# --- ƏSAS MƏNTİQ (Toxunulmadı) ---
+# --- /ai KOMANDASI (Əlavə olundu) ---
+@app.on_message(filters.command("ai") & filters.private)
+async def ai_cmd_handler(client, message):
+    if len(message.command) < 2:
+        await message.reply_text("❗ Sualınızı yazın. Məsələn: `/ai Salam necəsən?` ")
+        return
+    
+    query = " ".join(message.command[1:])
+    status = await message.reply("🤔 **Düşünürəm...**")
+    response = await get_ai_response(query)
+    await status.edit(response)
+
+# --- ƏSAS MƏNTİQ (Media + Birbaşa AI) ---
 @app.on_message(filters.text & filters.private)
 async def main_logic(client, message):
     text = message.text
     
+    # Komandadırsa keç
+    if text.startswith("/"):
+        return
+
+    # 1. Media Linki Yoxlanışı (TikTok, Insta, Pinterest)
     if any(x in text.lower() for x in ["tiktok.com", "instagram.com", "pin.it", "pinterest.com"]):
-        status = await message.reply("📥 **HT AI videonu hazırlayır...**")
+        status = await message.reply("📥 **HT AI yükləyir...**")
         try:
             path = download_media(text)
             await message.reply_video(path, caption="🚀 **HT AI Downloader**")
@@ -75,15 +86,10 @@ async def main_logic(client, message):
         except Exception as e:
             await status.edit(f"❌ Video yüklənmədi: {str(e)}")
     
+    # 2. Birbaşa AI sualı (Link deyilsə)
     else:
-        try:
-            response = ai_model.generate_content(text)
-            if response.text:
-                await message.reply_text(response.text)
-            else:
-                await message.reply_text("🤔 Cavab boşdur.")
-        except Exception as e:
-            # Əgər yenə 404 versə, burada dəqiq səbəb görünəcək
-            await message.reply_text(f"❌ **AI Xətası:**\n`{str(e)}`")
+        status = await message.reply("🤔 **Düşünürəm...**")
+        response = await get_ai_response(text)
+        await status.edit(response)
 
 app.run()
