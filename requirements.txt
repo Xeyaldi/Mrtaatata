@@ -4,3 +4,4 @@ yt-dlp
 ffmpeg-python
 urllib3
 requests
+pytdbot
