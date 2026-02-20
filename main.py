@@ -27,12 +27,10 @@ def download_media(url):
         info = ydl.extract_info(url, download=True)
         return ydl.prepare_filename(info)
 
-# --- START MESAJI VƏ REAKSİYA ---
+# --- START MESAJI (Xətasız Versiya) ---
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
-    # 🎃 Reaksiyası
-    await client.send_reaction(chat_id=message.chat.id, message_id=message.id, emoji="🎃")
-    
+    # Reaksiya (tepki) hissəsi BOT_METHOD_INVALID xətasına görə silindi
     caption = (
         "🤖 **HT AI sizə kömək etməyə hazırdır!**\n\n"
         "✨ **Funksiyalar:**\n"
@@ -56,14 +54,12 @@ async def start_handler(client, message):
 # --- AI MƏNTİQİ: /startai VƏ YA REPLY ---
 @app.on_message(filters.group & (filters.command("startai") | filters.reply))
 async def group_ai_handler(client, message):
-    # Əgər reply-dırsa, yalnız BOTA atılan reply-ları cavabla
     if message.reply_to_message:
         if message.reply_to_message.from_user.id != client.me.id:
             return 
     elif not message.text.startswith("/startai"):
         return
 
-    # Sualı təmizləyirik
     user_query = message.text.replace("/startai", "").strip()
     
     if not user_query and message.reply_to_message:
@@ -77,7 +73,7 @@ async def group_ai_handler(client, message):
         response = ai_model.generate_content(user_query)
         await processing_msg.edit(f"🤖 **HT AI:**\n\n{response.text}")
     except:
-        await processing_msg.edit("❌ Üzr istəyirəm, beyin hüceyrələrimdə qısaqapanma oldu.")
+        await processing_msg.edit("❌ Üzr istəyirəm, bir az problem yarandı.")
 
 # --- MÜSTƏQİL VİDEO YÜKLƏYİCİ (PM) ---
 @app.on_message(filters.private & ~filters.command("start"))
@@ -93,8 +89,10 @@ async def pm_logic(client, message):
         except:
             await status.edit("❌ Video tapılmadı və ya xəta baş verdi.")
     else:
-        # Şəxsi mesajda birbaşa söhbət
-        res = ai_model.generate_content(text)
-        await message.reply_text(res.text)
+        try:
+            res = ai_model.generate_content(text)
+            await message.reply_text(res.text)
+        except:
+            await message.reply_text("🤔 Hazırda cavab verə bilmirəm.")
 
 app.run()
