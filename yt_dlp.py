@@ -2,7 +2,7 @@ import asyncio
 import os
 import re
 
-from pyrogram import Client, types, filters
+from pytdbot import Client, types
 
 from src.config import DOWNLOAD_PATH
 from src.utils import Filter
@@ -83,22 +83,19 @@ async def youtube_cmd(c: Client, message: types.Message):
             return
 
         done = await message.reply_video(
-            video=downloaded_path,
+            video=types.InputFileLocal(downloaded_path),
             supports_streaming=True,
             caption="This video automatically deletes in 2 minutes so save or forward it now.",
         )
-        
-        await reply.delete()
-        async def delete_message():
-            await done.delete()
-        
-        # Pyrogram-da gecikməli silmə üçün loop istifadəsi
-        loop = asyncio.get_event_loop()
-        loop.call_later(120, lambda: asyncio.create_task(delete_message()))
-            
+        if isinstance(done, types.Error):
+            await reply.edit_text(f"❌ Error: {done.message}")
+        else:
+            await reply.delete()
+            async def delete_message():
+                await done.delete()
+            c.loop.call_later(120, lambda: asyncio.create_task(delete_message()))
     finally:
         try:
-            if os.path.exists(downloaded_path):
-                os.remove(downloaded_path)
+            os.remove(downloaded_path)
         except Exception as e:
-            print(f"Error deleting file {downloaded_path}: {e}")
+            c.logger.error(f"Error deleting file {downloaded_path}: {e}")
