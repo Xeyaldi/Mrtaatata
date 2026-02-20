@@ -11,14 +11,29 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
 
 app = Client("ht_media_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
+# --- COOKIE YÜKLƏMƏ FUNKSİYASI ---
+def get_cookies():
+    cookie_url = "https://batbin.me/manganocolumbite"
+    try:
+        response = requests.get(cookie_url, timeout=10)
+        if response.status_code == 200:
+            with open("cookies.txt", "w", encoding="utf-8") as f:
+                f.write(response.text)
+            return "cookies.txt"
+    except:
+        return None
+    return None
+
 # --- YÜKLƏMƏ FUNKSİYASI ---
 def download_media(url, mode="video"):
+    cookie_file = get_cookies() # Hər dəfə kukiləri linkdən yeniləyir
     ydl_opts = {
         'format': 'best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
+        'cookiefile': cookie_file,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
     }
     
@@ -48,7 +63,7 @@ async def start_handler(client, message):
     text = (
         "✨ **HT ULTIMATE DOWNLOADER** ✨\n\n"
         "🚀 Salam! Mən sosial şəbəkələrdən video, musiqi və şəkil yükləmək üçün nəzərdə tutulmuşam.\n\n"
-        "📥 **İstifadə:** Sadəcə yükləmək istədiyiniz medianın linkini bura göndərin."
+        "📥 **İstifadə:** Sadəcə linki bura göndərin və ya /youtube yazıb axtarış edin."
     )
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("📚 Dəstəklənən Platformalar", callback_data="help_list")],
@@ -56,6 +71,33 @@ async def start_handler(client, message):
          InlineKeyboardButton("👨‍💻 Sahib", url="https://t.me/kullaniciadidi")]
     ])
     await message.reply_text(text, reply_markup=buttons)
+
+# --- YOUTUBE AXTARIŞ KOMANDASI ---
+@app.on_message(filters.command("youtube") & filters.private)
+async def youtube_search(client, message):
+    query = message.text.split(None, 1)
+    if len(query) < 2:
+        return await message.reply_text("❌ **Zəhmət olmasa axtarış sözünü yazın!**\nNümunə: `/youtube mahnı adı`")
+    
+    status = await message.reply("🔍 **YouTube-da axtarılır...**")
+    search_query = query[1]
+    
+    ydl_opts = {'quiet': True, 'no_warnings': True, 'cookiefile': get_cookies()}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            results = ydl.extract_info(f"ytsearch5:{search_query}", download=False)['entries']
+            if not results:
+                return await status.edit("❌ **Heç bir nəticə tapılmadı!**")
+            
+            buttons = []
+            for video in results:
+                title = (video.get('title')[:35] + "..") if len(video.get('title')) > 35 else video.get('title')
+                v_url = video.get('webpage_url')
+                buttons.append([InlineKeyboardButton(f"🎬 {title}", callback_data=f"yt_choice|{v_url}")])
+            
+            await status.edit(f"🔎 **'{search_query}' üçün nəticələr:**", reply_markup=InlineKeyboardMarkup(buttons))
+        except Exception as e:
+            await status.edit(f"❌ **Axtarış xətası:** {str(e)}")
 
 # --- ƏSAS MƏNTİQ ---
 @app.on_message(filters.text & filters.private)
@@ -65,10 +107,8 @@ async def main_logic(client, message):
 
     if "youtube.com" in url or "youtu.be" in url:
         buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🎬 Video", callback_data=f"vid|{url}"),
-                InlineKeyboardButton("🎵 Musiqi (MP3)", callback_data=f"mus|{url}")
-            ]
+            [InlineKeyboardButton("🎬 Video", callback_data=f"vid|{url}"),
+             InlineKeyboardButton("🎵 Musiqi (MP3)", callback_data=f"mus|{url}")]
         ])
         await message.reply_text("🎞 **YouTube aşkarlandı! Seçim edin:**", reply_markup=buttons)
     
@@ -88,50 +128,38 @@ async def main_logic(client, message):
         except Exception as e:
             await status.edit(f"❌ **Xəta:** {str(e)}")
 
-# --- CALLBACK EMALÇISI (YouTube, Help və s.) ---
+# --- CALLBACK EMALÇISI ---
 @app.on_callback_query()
 async def callback_handler(client, callback_query: CallbackQuery):
     data = callback_query.data
 
-    # Dəstəklənən Saytlar Siyahısı
-    if data == "help_list":
+    if data.startswith("yt_choice|"):
+        url = data.split("|")[1]
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🎬 Video", callback_data=f"vid|{url}"),
+             InlineKeyboardButton("🎵 Musiqi (MP3)", callback_data=f"mus|{url}")]
+        ])
+        await callback_query.message.edit("⏬ **Formatı seçin:**", reply_markup=buttons)
+
+    elif data == "help_list":
         help_text = (
-            "🚀 **Dəstəklənən Platformalar və İmkanlar:**\n\n"
-            "📹 **Sosial Media:**\n"
-            "• `YouTube` - Video (4K), Shorts, MP3\n"
-            "• `TikTok` - Loqosuz videolar\n"
-            "• `Instagram` - Reels, Post, Hekayə\n"
-            "• `Pinterest` - Video və Yüksək keyfiyyətli Şəkillər\n"
-            "• `Facebook` - Bütün kütləvi videolar\n"
-            "• `Snapchat` - Spotlight videoları\n\n"
-            "🐦 **Xəbər & Forum:**\n"
-            "• `Twitter (X)` - Video və GIF\n"
-            "• `Reddit` - Səsli videolar\n"
-            "• `Threads` - Video yükləmə\n\n"
-            "🎵 **Musiqi:**\n"
-            "• `SoundCloud`, `Spotify`, `Bandcamp` (MP3 formatda)\n\n"
-            "🎬 **Və 1000-dən çox sayt:**\n"
-            "• `Vimeo`, `Twitch`, `Dailymotion`, `Steam` və s."
+            "🚀 **Dəstəklənən Platformalar:**\n\n"
+            "• YouTube (Video, MP3, Shorts)\n• TikTok (Loqosuz)\n"
+            "• Instagram (Reels, Post, Story)\n• Pinterest (Video, Foto)\n"
+            "• Facebook, Twitter, Reddit, SoundCloud və s."
         )
         await callback_query.message.edit(help_text, reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("⬅️ Geri", callback_data="back_start")]
         ]))
 
-    # Ana səhifəyə qayıdış
     elif data == "back_start":
-        text = (
-            "✨ **HT ULTIMATE DOWNLOADER** ✨\n\n"
-            "🚀 Salam! Mən sosial şəbəkələrdən video, musiqi və şəkil yükləmək üçün nəzərdə tutulmuşam.\n\n"
-            "📥 **İstifadə:** Sadəcə yükləmək istədiyiniz medianın linkini bura göndərin."
-        )
-        buttons = InlineKeyboardMarkup([
+        text = "✨ **HT ULTIMATE DOWNLOADER** ✨\n\n📥 **İstifadə:** Link göndərin və ya /youtube yazın."
+        await callback_query.message.edit(text, reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("📚 Dəstəklənən Platformalar", callback_data="help_list")],
             [InlineKeyboardButton("📢 Bot Kanalı", url="https://t.me/ht_bots"),
              InlineKeyboardButton("👨‍💻 Sahib", url="https://t.me/kullaniciadidi")]
-        ])
-        await callback_query.message.edit(text, reply_markup=buttons)
+        ]))
 
-    # YouTube Yükləmə Məntiqi
     elif "|" in data:
         mode_raw, url = data.split("|")
         mode = "video" if mode_raw == "vid" else "music"
