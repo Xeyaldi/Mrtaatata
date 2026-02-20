@@ -13,7 +13,7 @@ app = Client("ht_media_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOK
 
 # --- COOKIE YÜKLƏMƏ FUNKSİYASI (Düzəldildi) ---
 def get_cookies():
-    cookie_url = "https://batbin.me/manganocolumbite"
+    cookie_url = "https://batbin.me/deuteride"
     try:
         response = requests.get(cookie_url, timeout=10)
         if response.status_code == 200:
