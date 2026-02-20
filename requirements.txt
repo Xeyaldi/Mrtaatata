@@ -2,3 +2,4 @@ pyrogram
 tgcrypto
 yt-dlp
 duckduckgo-search
+typing-extensions>=4.5.0
