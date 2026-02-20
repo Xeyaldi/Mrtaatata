@@ -1,6 +1,6 @@
 pyrogram
 tgcrypto
+yt-dlp
 ffmpeg-python
 urllib3
 requests
-yt-dlp--update-to-latest
