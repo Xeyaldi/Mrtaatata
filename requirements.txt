@@ -1,4 +1,4 @@
-pytdbot
+pyrogram
 tgcrypto
 yt-dlp
 ffmpeg-python
