@@ -10,14 +10,13 @@ API_HASH = os.environ.get("API_HASH", "hash_kodun")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
 GEMINI_KEY = os.environ.get("GEMINI_KEY", "gemini_key")
 
-# --- GEMINI AYARLARI (Yalnız 404 xətası üçün düzəliş edildi) ---
+# --- GEMINI AYARLARI (Yalnız model 'gemini-1.5-pro' olaraq dəyişdirildi) ---
 try:
     genai.configure(api_key=GEMINI_KEY)
     
-    # 404 xətasını aradan qaldırmaq üçün 'gemini-1.5-flash-latest' istifadə edirik
-    # Bu, API-nin modeli daha rahat tapmasını təmin edir.
+    # Pro modeli daha güclüdür və geniş kontekst dərk edir
     ai_model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash-latest', 
+        model_name='gemini-1.5-pro', 
         safety_settings=[
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
             {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
@@ -46,9 +45,9 @@ def download_media(url):
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
     caption = (
-        "🤖 **HT AI Xidmətinizdədir!**\n\n"
+        "🤖 **HT AI Xidmətinizdədir! (Pro Versiya)**\n\n"
         "📥 **Media:** TikTok, Instagram, Pinterest linki atın.\n"
-        "🧠 **AI:** İstənilən sualı yazın, Gemini cavablasın."
+        "🧠 **AI:** İstənilən sualı yazın, Gemini Pro cavablasın."
     )
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ Məni Qrupa Əlavə Et", url=f"https://t.me/{client.me.username}?startgroup=true")],
@@ -59,7 +58,7 @@ async def start_handler(client, message):
     ])
     await message.reply_text(caption, reply_markup=buttons)
 
-# --- ƏSAS MƏNTİQ (Yalnız xəta göstərmə hissəsi stabil edildi) ---
+# --- ƏSAS MƏNTİQ (Qorunur) ---
 @app.on_message(filters.text & filters.private)
 async def main_logic(client, message):
     text = message.text
@@ -76,17 +75,15 @@ async def main_logic(client, message):
         except Exception as e:
             await status.edit(f"❌ Video yüklənmədi: {str(e)}")
     
-    # 2. AI Söhbət Hissəsi
+    # 2. AI Söhbət Hissəsi (Pro Model)
     else:
         try:
-            # Modelə sorğu göndəririk
             response = ai_model.generate_content(text)
             if response.text:
                 await message.reply_text(response.text)
             else:
                 await message.reply_text("🤔 Cavab boşdur. Başqa cür soruşun.")
         except Exception as e:
-            # 404 və ya Region xətası olarsa burada görünəcək
             await message.reply_text(f"❌ **AI Xətası:**\n`{str(e)}`")
 
 app.run()
