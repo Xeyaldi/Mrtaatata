@@ -40,6 +40,8 @@ def download_media(url, mode="video"):
         'no_warnings': True,
         'nocheckcertificate': True,
         'cookiefile': cookie_file,
+        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        'params': {'allow_unplayable_formats': True},
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
     }
     
@@ -164,7 +166,7 @@ async def callback_handler(client, callback_query: CallbackQuery):
             "🎵 **Musiqi:**\n"
             "• `SoundCloud`, `Spotify`, `Bandcamp` (MP3 formatda)\n\n"
             "🎬 **Və 1000-dən çox sayt:**\n"
-            "• `Vimeo`, `Twitch`, `Dailymotion`, `Steam` və s."
+            "• `Vimeo`, `Twitch`, `Dailymotion`, `Steam` ve s."
         )
         await callback_query.message.edit(help_text, reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("⬅️ Geri", callback_data="back_start")]
