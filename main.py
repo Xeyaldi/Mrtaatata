@@ -11,14 +11,18 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
 
 app = Client("ht_media_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# --- COOKIE YÜKLƏMƏ FUNKSİYASI (Düzəldildi) ---
+# --- COOKIE YÜKLƏMƏ FUNKSİYASI (Batbin saytını tam tanıması üçün tənzimləndi) ---
 def get_cookies():
     cookie_url = "https://batbin.me/deuteride"
     try:
-        response = requests.get(cookie_url, timeout=10)
+        # Saytın botu tanıması və mətni düzgün götürməsi üçün headers əlavə edildi
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+        }
+        response = requests.get(cookie_url, headers=headers, timeout=15)
         if response.status_code == 200:
             content = response.text.strip()
-            # Netscape formatı xətasını aradan qaldırmaq üçün başlıq yoxlanışı
+            # Netscape formatı xətasını aradan qaldırmaq üçün başlıq mütləq yoxlanılır
             header = "# Netscape HTTP Cookie File"
             if not content.startswith(header):
                 content = header + "\n" + content
@@ -30,26 +34,19 @@ def get_cookies():
         return None
     return None
 
-# --- YÜKLƏMƏ FUNKSİYASI (Format və Siyahı xətası burada düzəldi) ---
+# --- YÜKLƏMƏ FUNKSİYASI ---
 def download_media(url, mode="video"):
     cookie_file = get_cookies() # Hər dəfə kukiləri linkdən yeniləyir
     ydl_opts = {
-        # 'best' xətası və 'list-formats' tələbi üçün ağıllı format seçimi:
         'format': 'bestvideo[ext=mp4]+bestaudio[m4a]/best[ext=mp4]/best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'cookiefile': cookie_file,
-        # YouTube-un bot qorumasını keçmək üçün əlavə kliyentlər
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android', 'web'],
-                'player_skip': ['webpage', 'configs']
-            }
-        },
+        'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
         'params': {'allow_unplayable_formats': True},
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
     }
     
     if mode == "music":
@@ -67,7 +64,7 @@ def download_media(url, mode="video"):
         
         filename = ydl.prepare_filename(info)
         
-        # Musiqi üçün uzantı yoxlanışı
+        # Musiqi üçün uzantı tənzimləməsi (ixtisar edilmədi)
         if mode == "music":
             base, ext = os.path.splitext(filename)
             if os.path.exists(base + ".mp3"):
@@ -79,7 +76,7 @@ def download_media(url, mode="video"):
 
         return filename, info.get('title', 'Media'), is_video
 
-# --- START MESAJI ---
+# --- START MESAJI (Tam variant) ---
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
     text = (
@@ -150,7 +147,7 @@ async def main_logic(client, message):
         except Exception as e:
             await status.edit(f"❌ **Xəta:** {str(e)}")
 
-# --- CALLBACK EMALÇISI ---
+# --- CALLBACK EMALÇISI (Heç bir mesaj ixtisar edilmədi) ---
 @app.on_callback_query()
 async def callback_handler(client, callback_query: CallbackQuery):
     data = callback_query.data
