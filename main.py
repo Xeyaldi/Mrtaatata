@@ -11,14 +11,20 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
 
 app = Client("ht_media_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# --- COOKIE YÜKLƏMƏ FUNKSİYASI ---
+# --- COOKIE YÜKLƏMƏ FUNKSİYASI (Düzəldildi) ---
 def get_cookies():
     cookie_url = "https://batbin.me/manganocolumbite"
     try:
         response = requests.get(cookie_url, timeout=10)
         if response.status_code == 200:
+            content = response.text.strip()
+            # Netscape formatı xətasını aradan qaldırmaq üçün başlıq yoxlanışı
+            header = "# Netscape HTTP Cookie File"
+            if not content.startswith(header):
+                content = header + "\n" + content
+            
             with open("cookies.txt", "w", encoding="utf-8") as f:
-                f.write(response.text)
+                f.write(content)
             return "cookies.txt"
     except:
         return None
@@ -143,22 +149,39 @@ async def callback_handler(client, callback_query: CallbackQuery):
 
     elif data == "help_list":
         help_text = (
-            "🚀 **Dəstəklənən Platformalar:**\n\n"
-            "• YouTube (Video, MP3, Shorts)\n• TikTok (Loqosuz)\n"
-            "• Instagram (Reels, Post, Story)\n• Pinterest (Video, Foto)\n"
-            "• Facebook, Twitter, Reddit, SoundCloud və s."
+            "🚀 **Dəstəklənən Platformalar və İmkanlar:**\n\n"
+            "📹 **Sosial Media:**\n"
+            "• `YouTube` - Video (4K), Shorts, MP3\n"
+            "• `TikTok` - Loqosuz videolar\n"
+            "• `Instagram` - Reels, Post, Hekayə\n"
+            "• `Pinterest` - Video və Yüksək keyfiyyətli Şəkillər\n"
+            "• `Facebook` - Bütün kütləvi videolar\n"
+            "• `Snapchat` - Spotlight videoları\n\n"
+            "🐦 **Xəbər & Forum:**\n"
+            "• `Twitter (X)` - Video və GIF\n"
+            "• `Reddit` - Səsli videolar\n"
+            "• `Threads` - Video yükləmə\n\n"
+            "🎵 **Musiqi:**\n"
+            "• `SoundCloud`, `Spotify`, `Bandcamp` (MP3 formatda)\n\n"
+            "🎬 **Və 1000-dən çox sayt:**\n"
+            "• `Vimeo`, `Twitch`, `Dailymotion`, `Steam` və s."
         )
         await callback_query.message.edit(help_text, reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("⬅️ Geri", callback_data="back_start")]
         ]))
 
     elif data == "back_start":
-        text = "✨ **HT ULTIMATE DOWNLOADER** ✨\n\n📥 **İstifadə:** Link göndərin və ya /youtube yazın."
-        await callback_query.message.edit(text, reply_markup=InlineKeyboardMarkup([
+        text = (
+            "✨ **HT ULTIMATE DOWNLOADER** ✨\n\n"
+            "🚀 Salam! Mən sosial şəbəkələrdən video, musiqi və şəkil yükləmək üçün nəzərdə tutulmuşam.\n\n"
+            "📥 **İstifadə:** Sadəcə yükləmək istədiyiniz medianın linkini bura göndərin."
+        )
+        buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("📚 Dəstəklənən Platformalar", callback_data="help_list")],
             [InlineKeyboardButton("📢 Bot Kanalı", url="https://t.me/ht_bots"),
              InlineKeyboardButton("👨‍💻 Sahib", url="https://t.me/kullaniciadidi")]
-        ]))
+        ])
+        await callback_query.message.edit(text, reply_markup=buttons)
 
     elif "|" in data:
         mode_raw, url = data.split("|")
