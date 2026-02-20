@@ -1,8 +1,8 @@
 import os
-import yt_dlp
-import requests
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+# Öz yaratdığın yt_dlp.py faylını burada tanıdıq:
+from yt_dlp import download_media, search_youtube
 
 # Ayarlar
 API_ID = int(os.environ.get("API_ID", "12345"))
@@ -11,72 +11,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
 
 app = Client("ht_media_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# --- COOKIE YÜKLƏMƏ FUNKSİYASI (Batbin saytını tam tanıması üçün tənzimləndi) ---
-def get_cookies():
-    cookie_url = "https://batbin.me/deuteride"
-    try:
-        # Saytın botu tanıması və mətni düzgün götürməsi üçün headers əlavə edildi
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-        }
-        response = requests.get(cookie_url, headers=headers, timeout=15)
-        if response.status_code == 200:
-            content = response.text.strip()
-            # Netscape formatı xətasını aradan qaldırmaq üçün başlıq mütləq yoxlanılır
-            header = "# Netscape HTTP Cookie File"
-            if not content.startswith(header):
-                content = header + "\n" + content
-            
-            with open("cookies.txt", "w", encoding="utf-8") as f:
-                f.write(content)
-            return "cookies.txt"
-    except:
-        return None
-    return None
-
-# --- YÜKLƏMƏ FUNKSİYASI ---
-def download_media(url, mode="video"):
-    cookie_file = get_cookies() # Hər dəfə kukiləri linkdən yeniləyir
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[m4a]/best[ext=mp4]/best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-        'cookiefile': cookie_file,
-        'extractor_args': {'youtube': {'player_client': ['android', 'ios', 'web']}},
-        'params': {'allow_unplayable_formats': True},
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-    }
-    
-    if mode == "music":
-        ydl_opts['format'] = 'bestaudio/best'
-        ydl_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }]
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        if not info:
-            raise Exception("Media tapılmadı.")
-        
-        filename = ydl.prepare_filename(info)
-        
-        # Musiqi üçün uzantı tənzimləməsi (ixtisar edilmədi)
-        if mode == "music":
-            base, ext = os.path.splitext(filename)
-            if os.path.exists(base + ".mp3"):
-                filename = base + ".mp3"
-
-        is_video = True
-        if info.get('ext') in ['jpg', 'png', 'webp', 'jpeg'] or info.get('vcodec') == 'none' or mode == "music":
-            is_video = False
-
-        return filename, info.get('title', 'Media'), is_video
-
-# --- START MESAJI (Tam variant) ---
+# --- START MESAJI (BÜTÖV VƏ TOXUNULMAZ) ---
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
     text = (
@@ -91,34 +26,30 @@ async def start_handler(client, message):
     ])
     await message.reply_text(text, reply_markup=buttons)
 
-# --- YOUTUBE AXTARIŞ KOMANDASI ---
+# --- YOUTUBE AXTARIŞ KOMANDASI (BÜTÖV VƏ TOXUNULMAZ) ---
 @app.on_message(filters.command("youtube") & filters.private)
-async def youtube_search(client, message):
+async def youtube_search_cmd(client, message):
     query = message.text.split(None, 1)
     if len(query) < 2:
         return await message.reply_text("❌ **Zəhmət olmasa axtarış sözünü yazın!**\nNümunə: `/youtube mahnı adı`")
     
     status = await message.reply("🔍 **YouTube-da axtarılır...**")
-    search_query = query[1]
-    
-    ydl_opts = {'quiet': True, 'no_warnings': True, 'cookiefile': get_cookies()}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            results = ydl.extract_info(f"ytsearch5:{search_query}", download=False)['entries']
-            if not results:
-                return await status.edit("❌ **Heç bir nəticə tapılmadı!**")
-            
-            buttons = []
-            for video in results:
-                title = (video.get('title')[:35] + "..") if len(video.get('title')) > 35 else video.get('title')
-                v_url = video.get('webpage_url')
-                buttons.append([InlineKeyboardButton(f"🎬 {title}", callback_data=f"yt_choice|{v_url}")])
-            
-            await status.edit(f"🔎 **'{search_query}' üçün nəticələr:**", reply_markup=InlineKeyboardMarkup(buttons))
-        except Exception as e:
-            await status.edit(f"❌ **Axtarış xətası:** {str(e)}")
+    try:
+        results = search_youtube(query[1])
+        if not results:
+            return await status.edit("❌ **Heç bir nəticə tapılmadı!**")
+        
+        buttons = []
+        for video in results:
+            title = (video.get('title')[:35] + "..") if len(video.get('title')) > 35 else video.get('title')
+            v_url = video.get('webpage_url')
+            buttons.append([InlineKeyboardButton(f"🎬 {title}", callback_data=f"yt_choice|{v_url}")])
+        
+        await status.edit(f"🔎 **'{query[1]}' üçün nəticələr:**", reply_markup=InlineKeyboardMarkup(buttons))
+    except Exception as e:
+        await status.edit(f"❌ **Axtarış xətası:** {str(e)}")
 
-# --- ƏSAS MƏNTİQ ---
+# --- ƏSAS MƏNTİQ (BÜTÖV VƏ TOXUNULMAZ) ---
 @app.on_message(filters.text & filters.private)
 async def main_logic(client, message):
     url = message.text
@@ -147,7 +78,7 @@ async def main_logic(client, message):
         except Exception as e:
             await status.edit(f"❌ **Xəta:** {str(e)}")
 
-# --- CALLBACK EMALÇISI (Heç bir mesaj ixtisar edilmədi) ---
+# --- CALLBACK EMALÇISI (TAM SİYAHI VƏ DÜYMƏLƏR) ---
 @app.on_callback_query()
 async def callback_handler(client, callback_query: CallbackQuery):
     data = callback_query.data
