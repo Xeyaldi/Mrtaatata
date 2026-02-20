@@ -30,22 +30,30 @@ def get_cookies():
         return None
     return None
 
-# --- YÜKLƏMƏ FUNKSİYASI ---
+# --- YÜKLƏMƏ FUNKSİYASI (Format və Siyahı xətası burada düzəldi) ---
 def download_media(url, mode="video"):
     cookie_file = get_cookies() # Hər dəfə kukiləri linkdən yeniləyir
     ydl_opts = {
-        'format': 'best',
+        # 'best' xətası və 'list-formats' tələbi üçün ağıllı format seçimi:
+        'format': 'bestvideo[ext=mp4]+bestaudio[m4a]/best[ext=mp4]/best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
         'cookiefile': cookie_file,
-        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+        # YouTube-un bot qorumasını keçmək üçün əlavə kliyentlər
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android', 'web'],
+                'player_skip': ['webpage', 'configs']
+            }
+        },
         'params': {'allow_unplayable_formats': True},
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     }
     
     if mode == "music":
+        ydl_opts['format'] = 'bestaudio/best'
         ydl_opts['postprocessors'] = [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -59,8 +67,14 @@ def download_media(url, mode="video"):
         
         filename = ydl.prepare_filename(info)
         
+        # Musiqi üçün uzantı yoxlanışı
+        if mode == "music":
+            base, ext = os.path.splitext(filename)
+            if os.path.exists(base + ".mp3"):
+                filename = base + ".mp3"
+
         is_video = True
-        if info.get('ext') in ['jpg', 'png', 'webp', 'jpeg'] or info.get('vcodec') == 'none':
+        if info.get('ext') in ['jpg', 'png', 'webp', 'jpeg'] or info.get('vcodec') == 'none' or mode == "music":
             is_video = False
 
         return filename, info.get('title', 'Media'), is_video
