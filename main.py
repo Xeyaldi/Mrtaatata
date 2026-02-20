@@ -10,28 +10,27 @@ API_HASH = os.environ.get("API_HASH", "hash_kodun")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
 GEMINI_KEY = os.environ.get("GEMINI_KEY", "gemini_key")
 
-# --- GEMINI AYARLARI (Heç nə silinmədi, sadəcə gücləndirildi) ---
+# --- GEMINI AYARLARI (Yalnız 404 xətası üçün düzəliş edildi) ---
 try:
     genai.configure(api_key=GEMINI_KEY)
     
-    # AI-nın hər şeyi cavablandırması üçün filtrləri "BLOCK_NONE" edirik
-    safety_settings = [
-        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-    ]
-    
+    # 404 xətasını aradan qaldırmaq üçün 'gemini-1.5-flash-latest' istifadə edirik
+    # Bu, API-nin modeli daha rahat tapmasını təmin edir.
     ai_model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash',
-        safety_settings=safety_settings
+        model_name='gemini-1.5-flash-latest', 
+        safety_settings=[
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
     )
 except Exception as e:
     print(f"Gemini başlatma xətası: {e}")
 
 app = Client("ht_ai_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# --- MEDIA YÜKLƏYİCİ (TikTok, Insta, Pinterest - QALIR) ---
+# --- MEDIA YÜKLƏYİCİ (Heç nə silinməyib) ---
 def download_media(url):
     ydl_opts = {
         'format': 'best',
@@ -43,7 +42,7 @@ def download_media(url):
         info = ydl.extract_info(url, download=True)
         return ydl.prepare_filename(info)
 
-# --- START MESAJI VƏ BUTONLAR (QALIR) ---
+# --- START MESAJI VƏ BUTONLAR (Heç nə silinməyib) ---
 @app.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
     caption = (
@@ -60,7 +59,7 @@ async def start_handler(client, message):
     ])
     await message.reply_text(caption, reply_markup=buttons)
 
-# --- ƏSAS MƏNTİQ (HEÇ NƏ SİLİNMƏYİB) ---
+# --- ƏSAS MƏNTİQ (Yalnız xəta göstərmə hissəsi stabil edildi) ---
 @app.on_message(filters.text & filters.private)
 async def main_logic(client, message):
     text = message.text
@@ -80,13 +79,14 @@ async def main_logic(client, message):
     # 2. AI Söhbət Hissəsi
     else:
         try:
+            # Modelə sorğu göndəririk
             response = ai_model.generate_content(text)
             if response.text:
                 await message.reply_text(response.text)
             else:
                 await message.reply_text("🤔 Cavab boşdur. Başqa cür soruşun.")
         except Exception as e:
-            # Əgər xəta olarsa, səbəbini Telegram-da yazacaq (Region bloku və s.)
+            # 404 və ya Region xətası olarsa burada görünəcək
             await message.reply_text(f"❌ **AI Xətası:**\n`{str(e)}`")
 
 app.run()
