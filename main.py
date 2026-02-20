@@ -2,7 +2,6 @@ import os
 import yt_dlp
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-# Gemini əvəzinə tam stabil və pulsuz DuckDuckGo AI
 from duckduckgo_search import DDGS
 
 # Ayarlar (Heroku Config Vars)
@@ -24,17 +23,23 @@ def download_media(url):
         info = ydl.extract_info(url, download=True)
         return ydl.prepare_filename(info)
 
-# --- AI CAVAB FUNKSİYASI (Bloklanmayan GPT-4o-mini) ---
+# --- AI CAVAB FUNKSİYASI (Düzəldilmiş Stabil Versiya) ---
 async def get_ai_response(text):
     try:
+        # Yeni DDGS versiyası (0.6.x +) birbaşa string qaytarır
         with DDGS() as ddgs:
-            response = ""
-            # Burada 'gpt-4o-mini' modeli işləyir, çox sürətlidir
-            for r in ddgs.chat(text, model='gpt-4o-mini'):
-                response += r
-            return response if response else "🤔 Cavab ala bilmədim."
-    except Exception as e:
-        return f"❌ AI Xətası: {str(e)}"
+            response = ddgs.chat(text, model='gpt-4o-mini')
+            return response
+    except Exception:
+        try:
+            # Köhnə versiya ehtimalı üçün generator məntiqi
+            with DDGS() as ddgs:
+                resp = ""
+                for r in ddgs.chat(text, model='gpt-4o-mini'):
+                    resp += r
+                return resp
+        except Exception as e:
+            return f"❌ AI Xətası: {str(e)}"
 
 # --- START MESAJI VƏ BUTONLAR (Toxunulmadı, eynilə qalır) ---
 @app.on_message(filters.command("start") & filters.private)
@@ -53,11 +58,11 @@ async def start_handler(client, message):
     ])
     await message.reply_text(caption, reply_markup=buttons)
 
-# --- /ai KOMANDASI (Əlavə olundu) ---
+# --- /ai KOMANDASI (Qalır) ---
 @app.on_message(filters.command("ai") & filters.private)
 async def ai_cmd_handler(client, message):
     if len(message.command) < 2:
-        await message.reply_text("❗ Sualınızı yazın. Məsələn: `/ai Salam necəsən?` ")
+        await message.reply_text("❗ Sualınızı yazın. Məsələn: `/ai Salam` ")
         return
     
     query = " ".join(message.command[1:])
@@ -74,9 +79,9 @@ async def main_logic(client, message):
     if text.startswith("/"):
         return
 
-    # 1. Media Linki Yoxlanışı (TikTok, Insta, Pinterest)
+    # 1. Media Linki Yoxlanışı (Toxunulmadı)
     if any(x in text.lower() for x in ["tiktok.com", "instagram.com", "pin.it", "pinterest.com"]):
-        status = await message.reply("📥 **HT AI yükləyir...**")
+        status = await message.reply("📥 **HT AI videonu hazırlayır...**")
         try:
             path = download_media(text)
             await message.reply_video(path, caption="🚀 **HT AI Downloader**")
