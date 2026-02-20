@@ -10,13 +10,19 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
 
 app = Client("ht_media_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# --- YÜKLƏMƏ FUNKSİYASI ---
+# --- YÜKLƏMƏ FUNKSİYASI (Düzəldildi) ---
 def download_media(url, mode="video"):
+    # Pinterest və bəzi platformalar bestvideo+bestaudio birləşməsində xəta verir.
+    # 'best' istifadə etmək daha stabildir.
     ydl_opts = {
-        'format': 'bestvideo+bestaudio/best' if mode == "video" else 'bestaudio/best',
+        'format': 'best' if mode == "video" else 'bestaudio/best',
         'outtmpl': 'downloads/%(title)s.%(ext)s',
         'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True, # Sertifikat xətalarını keçmək üçün
+        'ignoreerrors': True,
     }
+    
     if mode == "music":
         ydl_opts['postprocessors'] = [{
             'key': 'FFmpegExtractAudio',
@@ -26,7 +32,12 @@ def download_media(url, mode="video"):
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
-        return ydl.prepare_filename(info), info.get('title', 'Media')
+        # Əgər info None-dursa (yüklənmədisə) xəta fırlat
+        if not info:
+            raise Exception("Media tapılmadı və ya format dəstəklənmir.")
+        
+        filename = ydl.prepare_filename(info)
+        return filename, info.get('title', 'Media')
 
 # --- START MESAJI (Vizual Effektli) ---
 @app.on_message(filters.command("start") & filters.private)
@@ -41,7 +52,7 @@ async def start_handler(client, message):
     )
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 Bot Kanalı", url="https://t.me/ht_bots")],
-        [InlineKeyboardButton("👨‍💻 Sahib", url="https://t.me/kullaniciadi")]
+        [InlineKeyboardButton("👨‍💻 Sahib", url="https://t.me/kullaniciadidi")]
     ])
     await message.reply_text(text, reply_markup=buttons)
 
@@ -49,7 +60,8 @@ async def start_handler(client, message):
 @app.on_message(filters.text & filters.private)
 async def main_logic(client, message):
     url = message.text
-    
+    if url.startswith("/"): return
+
     # YouTube Linki Yoxlanışı
     if "youtube.com" in url or "youtu.be" in url:
         buttons = InlineKeyboardMarkup([
@@ -85,12 +97,14 @@ async def youtube_callback(client, callback_query: CallbackQuery):
         if mode == "video":
             await callback_query.message.reply_video(path, caption=f"🎬 `{title}`\n\n🚀 @ht_bots")
         else:
-            # MP3 uzantısını düzəltmək üçün (FFmpeg sonrası)
             final_path = path.rsplit('.', 1)[0] + ".mp3"
+            # Əgər fayl mp3 deyilsə (çevrilmədisə) mövcud faylı göndər
+            if not os.path.exists(final_path): final_path = path
             await callback_query.message.reply_audio(final_path, caption=f"🎵 `{title}`\n\n🚀 @ht_bots")
         
         await callback_query.message.delete()
         if os.path.exists(path): os.remove(path)
+        if os.path.exists(final_path): os.remove(final_path)
     except Exception as e:
         await callback_query.message.edit(f"❌ **Xəta:** {str(e)}")
 
