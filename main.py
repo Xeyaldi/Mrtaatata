@@ -36,8 +36,8 @@ def get_cookies():
 def download_media(url, mode="video"):
     cookie_file = get_cookies()
     ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[m4a]/best[ext=mp4]/best',
-        'outtmpl': 'downloads/%(title)s.%(ext)s',
+                'format': 'bestvideo+bestaudio/best',
+        'merge_output_format': 'mp4',
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
