@@ -89,7 +89,7 @@ async def start_handler(client, message):
     text = (
         "✨ **HT ULTIMATE DOWNLOADER** ✨\n\n"
         "🚀 Salam! Mən sosial şəbəkələrdən video, musiqi və şəkil yükləmək üçün nəzərdə tutulmuşam.\n\n"
-        "📥 **İstifadə:** Sadəcə linki bura göndərin və ya /youtube yazıb axtarış edin."
+        "📥 **İstifadə:** Sadəcə linki göndərin"
     )
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("📚 Dəstəklənən Platformalar", callback_data="help_list")],
@@ -171,7 +171,6 @@ async def callback_handler(client, callback_query: CallbackQuery):
         help_text = (
             "🚀 **Dəstəklənən Platformalar və İmkanlar:**\n\n"
             "📹 **Sosial Media:**\n"
-            "• `YouTube` - Video (4K), Shorts, MP3\n"
             "• `TikTok` - Loqosuz videolar\n"
             "• `Instagram` - Reels, Post, Hekayə\n"
             "• `Pinterest` - Video və Yüksək keyfiyyətli Şəkillər\n"
