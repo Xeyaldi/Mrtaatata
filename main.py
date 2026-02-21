@@ -8,18 +8,17 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQ
 API_ID = int(os.environ.get("API_ID", "12345"))
 API_HASH = os.environ.get("API_HASH", "hash_kodun")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "bot_tokenin")
-# Heroku Config Vars hissəsindən oxuyur
-COOKIE_URL = os.environ.get("COOKIE_URL", "https://batbin.me/deuteride")
 
 app = Client("ht_media_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 # --- COOKIE YÜKLƏMƏ FUNKSİYASI ---
 def get_cookies():
+    cookie_url = "https://batbin.me/deuteride"
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         }
-        response = requests.get(COOKIE_URL, headers=headers, timeout=15)
+        response = requests.get(cookie_url, headers=headers, timeout=15)
         if response.status_code == 200:
             content = response.text.strip()
             header = "# Netscape HTTP Cookie File"
@@ -206,6 +205,8 @@ async def callback_handler(client, callback_query: CallbackQuery):
     elif "|" in data:
         mode_raw, url = data.split("|")
         mode = "video" if mode_raw == "vid" else "music"
+        await callback_query.message.edit(f"⏳ **Hazırlanır...** ({mode.upper()})")
+        
         try:
             path, title, is_video = download_media(url, mode=mode)
             if mode == "video":
@@ -221,4 +222,4 @@ async def callback_handler(client, callback_query: CallbackQuery):
         except Exception as e:
             await callback_query.message.edit(f"❌ **Xəta:** {str(e)}")
 
-app.run()               
+app.run()
